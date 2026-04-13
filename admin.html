@@ -377,6 +377,17 @@
       </div>
     </div>
 
+    <!-- Company List -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">참여 기업 목록</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.5">
+        한 줄에 기업명 하나씩 입력하세요.<br>담당자 앱에서 자동완성으로 표시됩니다.
+      </div>
+      <textarea class="config-input" id="conf-company-list" rows="8" placeholder="바이온사이트&#10;기업명2&#10;기업명3&#10;..." style="resize:vertical;line-height:1.7;font-size:12px"></textarea>
+      <button class="save-config-btn" onclick="saveCompanyList()" style="margin-top:6px">기업 목록 저장</button>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px" id="company-count"></div>
+    </div>
+
     <!-- Config -->
     <div class="sidebar-section">
       <div class="sidebar-section-title">전시회 설정</div>
@@ -550,6 +561,21 @@ function switchTab(tab) {
   document.getElementById('tab-setup').style.display = tab === 'setup' ? 'block' : 'none';
 }
 
+function saveCompanyList() {
+  const raw = document.getElementById('conf-company-list').value;
+  const list = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+  const config = JSON.parse(localStorage.getItem('expo_config') || '{}');
+  config.companyList = list;
+  localStorage.setItem('expo_config', JSON.stringify(config));
+  updateCompanyCount(list);
+  showToast(`✅ ${list.length}개 기업이 저장되었습니다.`);
+}
+
+function updateCompanyCount(list) {
+  const el = document.getElementById('company-count');
+  if (el) el.textContent = `현재 ${list.length}개 기업 등록됨`;
+}
+
 function loadConfig() {
   const saved = localStorage.getItem('expo_config');
   if (saved) {
@@ -557,6 +583,10 @@ function loadConfig() {
     document.getElementById('conf-expo-name').value = p.expoName || '';
     document.getElementById('conf-expo-date').value = p.expoDates || '';
     document.getElementById('conf-script-url').value = p.scriptUrl || '';
+    if (p.companyList && p.companyList.length) {
+      document.getElementById('conf-company-list').value = p.companyList.join('\n');
+      updateCompanyCount(p.companyList);
+    }
   }
 }
 

@@ -512,6 +512,40 @@
     color: var(--danger);
     margin-top: 4px;
   }
+
+  /* Autocomplete */
+  .autocomplete-wrap { position: relative; }
+  .autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    background: var(--surface);
+    border: 1.5px solid var(--accent);
+    border-top: none;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    z-index: 50;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .autocomplete-item {
+    padding: 10px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover, .autocomplete-item.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .autocomplete-item mark {
+    background: none;
+    color: var(--accent);
+    font-weight: 700;
+  }
 </style>
 </head>
 <body>
@@ -536,11 +570,18 @@
     <div class="login-card">
       <div class="field">
         <div class="field-label">국내 기업명 <span class="required">*</span></div>
-        <input class="field-input" id="login-company" type="text" placeholder="예: 바이온사이트" autocomplete="organization">
+        <div class="autocomplete-wrap">
+          <input class="field-input" id="login-company" type="text" placeholder="기업명을 입력하세요" autocomplete="off"
+            oninput="showCompanyList(this.value)"
+            onkeydown="handleCompanyKey(event)"
+            onfocus="showCompanyList(this.value)">
+          <div class="autocomplete-list" id="company-list" style="display:none"></div>
+        </div>
       </div>
       <div class="field">
         <div class="field-label">담당자명 <span class="required">*</span></div>
-        <input class="field-input" id="login-name" type="text" placeholder="예: 홍길동" autocomplete="name">
+        <input class="field-input" id="login-name" type="text" placeholder="예: 홍길동" autocomplete="name"
+          onfocus="closeCompanyList()">
       </div>
       <button class="login-btn" onclick="handleLogin()">시작 / 이어서 작성 →</button>
     </div>
@@ -678,7 +719,7 @@ const CONFIG = {
   expoName: "2025 BIO USA",
   expoDates: "2025. 6. 16 – 18",
   // Google Apps Script 웹 앱 URL (설정 후 여기에 붙여넣기)
-  scriptUrl: "https://script.google.com/macros/s/AKfycbwn1UZrUlixa39gnHPr2ZIJ2uXUq8JzyX9LYJBdBeTXx6QH1B93fKTV5e8RLrn8RRGs4w/exec"
+  scriptUrl: "YOUR_APPS_SCRIPT_URL_HERE"
 };
 // ===================================================
 
@@ -805,7 +846,7 @@ async function saveSession(id) {
   updateSummary();
 
   // Send to Google Sheets
-  if (CONFIG.scriptUrl && CONFIG.scriptUrl !== "https://script.google.com/macros/s/AKfycbwn1UZrUlixa39gnHPr2ZIJ2uXUq8JzyX9LYJBdBeTXx6QH1B93fKTV5e8RLrn8RRGs4w/exec") {
+  if (CONFIG.scriptUrl && CONFIG.scriptUrl !== "YOUR_APPS_SCRIPT_URL_HERE") {
     try {
       const payload = {
         type: 'session',
@@ -984,7 +1025,7 @@ async function submitAll() {
   saveLocal();
 
   // Final submit to Sheets
-  if (CONFIG.scriptUrl && CONFIG.scriptUrl !== "https://script.google.com/macros/s/AKfycbwn1UZrUlixa39gnHPr2ZIJ2uXUq8JzyX9LYJBdBeTXx6QH1B93fKTV5e8RLrn8RRGs4w/exec") {
+  if (CONFIG.scriptUrl && CONFIG.scriptUrl !== "YOUR_APPS_SCRIPT_URL_HERE") {
     try {
       const payload = {
         type: 'final',
@@ -1015,8 +1056,61 @@ async function submitAll() {
   cs.style.display = 'flex';
 }
 
+// ===================== AUTOCOMPLETE =====================
+let companyListData = [];
+let acSelectedIndex = -1;
+
+function loadCompanyList() {
+  const saved = localStorage.getItem('expo_config');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    companyListData = parsed.companyList || [];
+  }
+}
+
+function showCompanyList(query) {
+  const list = document.getElementById('company-list');
+  if (companyListData.length === 0) { list.style.display = 'none'; return; }
+  const q = query.trim().toLowerCase();
+  const filtered = q ? companyListData.filter(c => c.toLowerCase().includes(q)) : companyListData;
+  if (filtered.length === 0) { list.style.display = 'none'; return; }
+  acSelectedIndex = -1;
+  list.innerHTML = filtered.map((c, i) => {
+    const highlighted = q ? c.replace(new RegExp('(' + q + ')', 'gi'), '<mark>$1</mark>') : c;
+    return '<div class="autocomplete-item" data-val="' + c + '" onmousedown="selectCompany(\'' + c + '\')">' + highlighted + '</div>';
+  }).join('');
+  list.style.display = 'block';
+}
+
+function selectCompany(name) {
+  document.getElementById('login-company').value = name;
+  closeCompanyList();
+  document.getElementById('login-name').focus();
+}
+
+function closeCompanyList() {
+  document.getElementById('company-list').style.display = 'none';
+  acSelectedIndex = -1;
+}
+
+function handleCompanyKey(e) {
+  const list = document.getElementById('company-list');
+  const items = list.querySelectorAll('.autocomplete-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); acSelectedIndex = Math.min(acSelectedIndex + 1, items.length - 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); acSelectedIndex = Math.max(acSelectedIndex - 1, -1); }
+  else if (e.key === 'Enter' && acSelectedIndex >= 0) { e.preventDefault(); selectCompany(items[acSelectedIndex].getAttribute('data-val')); return; }
+  else if (e.key === 'Escape') { closeCompanyList(); return; }
+  items.forEach((item, i) => item.classList.toggle('active', i === acSelectedIndex));
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.autocomplete-wrap')) closeCompanyList();
+});
+
 // Init
 loadConfig();
+loadCompanyList();
 </script>
 </body>
 </html>
